@@ -1,7 +1,6 @@
 /// Entity de domínio para Meta Diária
 /// Contém invariantes de domínio e validações
 class DailyGoalEntity {
-
   DailyGoalEntity({
     required this.id,
     required this.userId,
@@ -10,10 +9,12 @@ class DailyGoalEntity {
     required this.currentValue,
     required this.date,
     required this.isCompleted,
+    required this.category, // NOVO: categoria da meta
   })  : assert(id.isNotEmpty, 'ID não pode ser vazio'),
         assert(userId.isNotEmpty, 'User ID não pode ser vazio'),
         assert(targetValue > 0, 'Valor alvo deve ser positivo'),
         assert(currentValue >= 0, 'Valor atual não pode ser negativo');
+
   final String id;
   final String userId;
   final GoalType type;
@@ -21,6 +22,7 @@ class DailyGoalEntity {
   final int currentValue;
   final DateTime date;
   final bool isCompleted;
+  final GoalCategory category; // NOVO
 
   /// Invariante: progresso não pode exceder 100%
   double get progress {
@@ -54,6 +56,7 @@ class DailyGoalEntity {
     int? currentValue,
     DateTime? date,
     bool? isCompleted,
+    GoalCategory? category,
   }) {
     return DailyGoalEntity(
       id: id ?? this.id,
@@ -63,6 +66,7 @@ class DailyGoalEntity {
       currentValue: currentValue ?? this.currentValue,
       date: date ?? this.date,
       isCompleted: isCompleted ?? this.isCompleted,
+      category: category ?? this.category,
     );
   }
 
@@ -75,7 +79,8 @@ class DailyGoalEntity {
         other.userId == userId &&
         other.type == type &&
         other.targetValue == targetValue &&
-        other.currentValue == currentValue;
+        other.currentValue == currentValue &&
+        other.category == category;
   }
 
   @override
@@ -84,12 +89,13 @@ class DailyGoalEntity {
         userId.hashCode ^
         type.hashCode ^
         targetValue.hashCode ^
-        currentValue.hashCode;
+        currentValue.hashCode ^
+        category.hashCode;
   }
 
   @override
   String toString() {
-    return 'DailyGoalEntity(id: $id, type: $type, progress: $progressPercentage%)';
+    return 'DailyGoalEntity(id: $id, type: $type, category: ${category.description}, progress: $progressPercentage%)';
   }
 }
 
@@ -110,6 +116,28 @@ enum GoalType {
     return GoalType.values.firstWhere(
       (type) => type.name == value,
       orElse: () => throw ArgumentError('Tipo de meta inválido: $value'),
+    );
+  }
+}
+
+/// NOVO: Enum de domínio para categorias de meta
+enum GoalCategory {
+  health('Saúde', '💪', '🟢'),
+  study('Estudo', '📚', '🔵'),
+  work('Trabalho', '💼', '🟠'),
+  personal('Pessoal', '🌟', '🟣');
+
+  final String description;
+  final String icon;
+  final String colorEmoji;
+
+  const GoalCategory(this.description, this.icon, this.colorEmoji);
+
+  /// Cria GoalCategory a partir de string
+  static GoalCategory fromString(String value) {
+    return GoalCategory.values.firstWhere(
+      (category) => category.name == value,
+      orElse: () => GoalCategory.personal, // fallback padrão
     );
   }
 }

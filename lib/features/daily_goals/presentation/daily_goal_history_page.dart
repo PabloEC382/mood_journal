@@ -243,7 +243,7 @@ class _DailyGoalHistoryPageState extends State<DailyGoalHistoryPage> {
                   ],
                 ),
               );
-            }).toList(),
+            }),
           ],
         ),
       ),
@@ -279,7 +279,7 @@ class _DailyGoalHistoryPageState extends State<DailyGoalHistoryPage> {
                         goal.isCompleted ? Colors.green[100] : Colors.grey[200],
                     child: Text(goal.category.icon),
                   ),
-                  title: Text('${goal.type.description}'),
+                  title: Text(goal.type.description),
                   subtitle: Text(
                     '${goal.category.description} • ${_formatDate(goal.date)}',
                     style: Theme.of(context).textTheme.bodySmall,

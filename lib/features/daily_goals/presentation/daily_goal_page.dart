@@ -123,7 +123,7 @@ class _DailyGoalListPageState extends State<DailyGoalListPage>
                 },
               ),
             );
-          }).toList(),
+          }),
         ],
       ),
     );

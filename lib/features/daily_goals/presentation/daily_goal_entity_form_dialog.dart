@@ -16,8 +16,8 @@ Future<DailyGoalEntity?> showDailyGoalEntityFormDialog(
 }
 
 class _DailyGoalEntityFormDialog extends StatefulWidget {
-  final DailyGoalEntity? initial;
   const _DailyGoalEntityFormDialog({this.initial, Key? key}) : super(key: key);
+  final DailyGoalEntity? initial;
 
   @override
   State<_DailyGoalEntityFormDialog> createState() =>

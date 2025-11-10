@@ -1,280 +1,308 @@
 import 'package:flutter/material.dart';
 import 'package:mood_journal/domain/entities/daily_goal_entity.dart';
-import 'daily_goal_entity_form_dialog.dart';
 
-class DailyGoalListPage extends StatefulWidget {
-  const DailyGoalListPage({super.key, required this.entity});
-
-  final String entity;
+/// Página de Histórico de Metas Concluídas
+/// Feature 1: Mostra estatísticas e lista de metas dos últimos 7/30 dias
+class DailyGoalHistoryPage extends StatefulWidget {
+  const DailyGoalHistoryPage({super.key});
 
   @override
-  State<DailyGoalListPage> createState() => _DailyGoalListPageState();
+  State<DailyGoalHistoryPage> createState() => _DailyGoalHistoryPageState();
 }
 
-class _DailyGoalListPageState extends State<DailyGoalListPage>
-    with SingleTickerProviderStateMixin {
-  bool showTip = true;
-  bool showTutorial = false;
-  final List<DailyGoalEntity> items = []; // Layout-only: sem persistência
-  GoalCategory? _selectedFilter; // NOVO: filtro de categoria
-
-  late final AnimationController _fabController;
-  late final Animation<double> _fabScale;
+class _DailyGoalHistoryPageState extends State<DailyGoalHistoryPage> {
+  final List<DailyGoalEntity> _allGoals = []; // TODO: carregar do DAO
+  int _selectedPeriod = 7; // 7 ou 30 dias
 
   @override
   void initState() {
     super.initState();
-    _fabController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 700),
-    );
-    _fabScale = Tween<double>(begin: 1.0, end: 1.15).animate(
-      CurvedAnimation(parent: _fabController, curve: Curves.elasticInOut),
-    );
-    if (showTip) _fabController.repeat(reverse: true);
+    // TODO: carregar metas do cache local via DAO
+    _loadGoals();
   }
 
-  @override
-  void dispose() {
-    _fabController.dispose();
-    super.dispose();
+  Future<void> _loadGoals() async {
+    // TODO: integrar com DailyGoalLocalDao.listAll()
+    // Por enquanto, simulação layout-only
+    setState(() {
+      // Metas de exemplo seriam carregadas aqui
+    });
   }
 
-  /// NOVO: Filtra itens por categoria selecionada
-  List<DailyGoalEntity> get _filteredItems {
-    if (_selectedFilter == null) return items;
-    return items.where((item) => item.category == _selectedFilter).toList();
+  /// Filtra metas dos últimos N dias
+  List<DailyGoalEntity> get _recentGoals {
+    final cutoffDate = DateTime.now().subtract(Duration(days: _selectedPeriod));
+    return _allGoals
+        .where((goal) => goal.date.isAfter(cutoffDate))
+        .toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+  }
+
+  /// Calcula percentual de metas concluídas
+  double get _completionRate {
+    if (_recentGoals.isEmpty) return 0.0;
+    final completed = _recentGoals.where((g) => g.isCompleted).length;
+    return (completed / _recentGoals.length) * 100;
+  }
+
+  /// Conta metas por categoria
+  Map<GoalCategory, int> get _goalsByCategory {
+    final counts = <GoalCategory, int>{};
+    for (final goal in _recentGoals) {
+      counts[goal.category] = (counts[goal.category] ?? 0) + 1;
+    }
+    return counts;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        children: [
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
+      appBar: AppBar(
+        title: const Text('Histórico de Metas'),
+        actions: [
+          PopupMenuButton<int>(
+            initialValue: _selectedPeriod,
+            onSelected: (period) => setState(() => _selectedPeriod = period),
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 7, child: Text('Últimos 7 dias')),
+              const PopupMenuItem(value: 30, child: Text('Últimos 30 dias')),
+            ],
+          ),
+        ],
+      ),
+      body: _allGoals.isEmpty
+          ? _buildEmptyState()
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // NOVO: Chips de filtro por categoria
-                  if (items.isNotEmpty) _buildCategoryFilters(),
-                  const SizedBox(height: 8),
-                  Expanded(child: _buildBody(context)),
+                  _buildStatisticsCard(),
+                  const SizedBox(height: 16),
+                  _buildCategoryBreakdown(),
+                  const SizedBox(height: 16),
+                  _buildGoalsList(),
                 ],
               ),
             ),
-          ),
-
-          // Overlay de tutorial central
-          if (showTutorial) _buildTutorialOverlay(context),
-
-          // Opt-out button positioned bottom-left
-          _buildOptOutButton(context),
-
-          // Tip bubble positioned above FAB (bottom-right)
-          if (showTip) _buildTipBubble(context),
-        ],
-      ),
-      // Standard FAB at bottom-right with subtle scale animation
-      floatingActionButton: ScaleTransition(
-        scale: _fabScale,
-        child: FloatingActionButton(
-          onPressed: () async {
-            final result = await showDailyGoalEntityFormDialog(context);
-            if (result != null) {
-              setState(() {
-                items.insert(0, result);
-              });
-            }
-          },
-          child: const Icon(Icons.add),
-        ),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
-  /// NOVO: Chips de filtro por categoria
-  Widget _buildCategoryFilters() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Chip "Todas"
-          FilterChip(
-            label: const Text('Todas'),
-            selected: _selectedFilter == null,
-            onSelected: (selected) {
-              setState(() => _selectedFilter = null);
-            },
+          Icon(
+            Icons.history,
+            size: 72,
+            color: Theme.of(context)
+                .colorScheme
+                .onSurface
+                .withAlpha((0.3 * 255).round()),
           ),
-          const SizedBox(width: 8),
-          // Chips de categorias
-          ...GoalCategory.values.map((category) {
-            return Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: FilterChip(
-                label: Text('${category.icon} ${category.description}'),
-                selected: _selectedFilter == category,
-                onSelected: (selected) {
-                  setState(() {
-                    _selectedFilter = selected ? category : null;
-                  });
-                },
-              ),
-            );
-          }).toList(),
+          const SizedBox(height: 16),
+          Text(
+            'Nenhuma meta registrada ainda.',
+            style: Theme.of(context).textTheme.bodyLarge,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Comece criando suas metas diárias!',
+            style: Theme.of(context).textTheme.bodySmall,
+            textAlign: TextAlign.center,
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildBody(BuildContext context) {
-    if (_filteredItems.isEmpty && items.isEmpty) {
-      return Center(
+  /// Card de estatísticas principais
+  Widget _buildStatisticsCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              Icons.inbox,
-              size: 72,
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurface
-                  .withAlpha((0.3 * 255).round()),
+            Row(
+              children: [
+                Icon(Icons.insights,
+                    color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Estatísticas',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
-            Text(
-              'Nenhum ${widget.entity.toUpperCase()} cadastrado ainda.',
-              style: Theme.of(context).textTheme.bodyLarge,
-              textAlign: TextAlign.center,
+            // Taxa de conclusão
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Taxa de conclusão:',
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
+                Text(
+                  '${_completionRate.toStringAsFixed(0)}%',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Use o botão abaixo para criar o primeiro ${widget.entity.toLowerCase()}.',
-              style: Theme.of(context).textTheme.bodySmall,
-              textAlign: TextAlign.center,
+            const SizedBox(height: 12),
+            // Barra de progresso
+            LinearProgressIndicator(
+              value: _completionRate / 100,
+              minHeight: 8,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            const SizedBox(height: 16),
+            // Resumo
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildStatItem(
+                  'Total',
+                  _recentGoals.length.toString(),
+                  Icons.calendar_today,
+                ),
+                _buildStatItem(
+                  'Concluídas',
+                  _recentGoals.where((g) => g.isCompleted).length.toString(),
+                  Icons.check_circle,
+                ),
+                _buildStatItem(
+                  'Pendentes',
+                  _recentGoals.where((g) => !g.isCompleted).length.toString(),
+                  Icons.pending,
+                ),
+              ],
             ),
           ],
         ),
-      );
-    }
-
-    if (_filteredItems.isEmpty) {
-      return Center(
-        child: Text(
-          'Nenhuma meta na categoria ${_selectedFilter!.description}.',
-          style: Theme.of(context).textTheme.bodyLarge,
-          textAlign: TextAlign.center,
-        ),
-      );
-    }
-
-    return ListView.separated(
-      itemBuilder: (context, index) {
-        final goal = _filteredItems[index];
-        return ListTile(
-          leading: CircleAvatar(
-            child: Text(goal.category.icon),
-          ),
-          title: Text('${goal.type.description} - ${goal.category.description}'),
-          subtitle: Text(
-            'Progresso: ${goal.progressPercentage}% (${goal.currentValue}/${goal.targetValue})',
-          ),
-          trailing: goal.isCompleted
-              ? const Icon(Icons.check_circle, color: Colors.green)
-              : null,
-        );
-      },
-      separatorBuilder: (_, __) => const Divider(height: 1),
-      itemCount: _filteredItems.length,
+      ),
     );
   }
 
-  Widget _buildTutorialOverlay(BuildContext context) => Positioned.fill(
-        child: Container(
-          color: Colors.black45,
-          alignment: Alignment.center,
-          child: Card(
-            margin: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Tutorial',
-                      style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Aqui você verá uma lista com ${widget.entity.toUpperCase()}s. Use o botão flutuante para adicionar.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => setState(() => showTutorial = false),
-                    child: const Text('Entendi'),
-                  ),
-                ],
+  Widget _buildStatItem(String label, String value, IconData icon) {
+    return Column(
+      children: [
+        Icon(icon, color: Theme.of(context).colorScheme.secondary),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
               ),
-            ),
-          ),
         ),
-      );
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
 
-  Widget _buildOptOutButton(BuildContext context) => Positioned(
-        left: 16,
-        bottom: MediaQuery.of(context).padding.bottom + 12,
-        child: TextButton(
-          onPressed: () => setState(() {
-            showTip = false;
-            _fabController.stop();
-            _fabController.reset();
-          }),
-          child: const Text('Não exibir dica novamente',
-              overflow: TextOverflow.ellipsis),
-        ),
-      );
+  /// Breakdown por categoria
+  Widget _buildCategoryBreakdown() {
+    if (_goalsByCategory.isEmpty) return const SizedBox.shrink();
 
-  Widget _buildTipBubble(BuildContext context) => Positioned(
-        right: 16,
-        bottom: MediaQuery.of(context).padding.bottom + 72,
-        child: AnimatedBuilder(
-          animation: _fabController,
-          builder: (context, child) {
-            final v = _fabController.value;
-            return Transform.translate(
-              offset: Offset(0, 10 * (1 - v)),
-              child: child,
-            );
-          },
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.8),
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.secondary,
-                borderRadius: BorderRadius.circular(8.0),
-                boxShadow: const [
-                  BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 6,
-                      offset: Offset(0, 3))
-                ],
-              ),
-              child: Text(
-                'Toque aqui para adicionar ${widget.entity.toLowerCase()}',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: Colors.white),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 2,
-              ),
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Por Categoria',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
-          ),
+            const SizedBox(height: 12),
+            ..._goalsByCategory.entries.map((entry) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Text(entry.key.icon, style: const TextStyle(fontSize: 20)),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(entry.key.description)),
+                    Text(
+                      '${entry.value} metas',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ],
         ),
-      );
+      ),
+    );
+  }
+
+  /// Lista de metas recentes
+  Widget _buildGoalsList() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Metas Recentes',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _recentGoals.length,
+              separatorBuilder: (_, __) => const Divider(),
+              itemBuilder: (context, index) {
+                final goal = _recentGoals[index];
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(
+                    backgroundColor:
+                        goal.isCompleted ? Colors.green[100] : Colors.grey[200],
+                    child: Text(goal.category.icon),
+                  ),
+                  title: Text('${goal.type.description}'),
+                  subtitle: Text(
+                    '${goal.category.description} • ${_formatDate(goal.date)}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  trailing: goal.isCompleted
+                      ? const Icon(Icons.check_circle, color: Colors.green)
+                      : Text('${goal.progressPercentage}%'),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final diff = now.difference(date).inDays;
+
+    if (diff == 0) return 'Hoje';
+    if (diff == 1) return 'Ontem';
+    if (diff < 7) return '$diff dias atrás';
+    return '${date.day}/${date.month}/${date.year}';
+  }
 }

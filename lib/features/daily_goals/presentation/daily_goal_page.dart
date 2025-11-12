@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mood_journal/domain/entities/daily_goal_entity.dart';
 import 'daily_goal_entity_form_dialog.dart';
+import 'daily_goal_history_page.dart';
 
 class DailyGoalListPage extends StatefulWidget {
   const DailyGoalListPage({super.key, required this.entity});
@@ -13,10 +14,11 @@ class DailyGoalListPage extends StatefulWidget {
 
 class _DailyGoalListPageState extends State<DailyGoalListPage>
     with SingleTickerProviderStateMixin {
+  // Simulação de estado local (não persistente)
   bool showTip = true;
   bool showTutorial = false;
-  final List<DailyGoalEntity> items = []; // Layout-only: sem persistência
-  GoalCategory? _selectedFilter; // NOVO: filtro de categoria
+  final List<DailyGoalEntity> items = []; // NOVO: tipado com DailyGoalEntity
+  GoalCategory? _selectedCategoryFilter; // NOVO: filtro por categoria
 
   late final AnimationController _fabController;
   late final Animation<double> _fabScale;
@@ -34,21 +36,76 @@ class _DailyGoalListPageState extends State<DailyGoalListPage>
     if (showTip) _fabController.repeat(reverse: true);
   }
 
-  @override
-  void dispose() {
-    _fabController.dispose();
-    super.dispose();
+  /// Retorna goals que devem ir para o histórico
+  /// Goals histórico = data passada OU concluído
+  List<DailyGoalEntity> _getHistoricalGoals() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    return items.where((goal) {
+      final goalDate = DateTime(goal.date.year, goal.date.month, goal.date.day);
+      final isPast = goalDate.isBefore(today);
+      final isCompleted = goal.isCompleted;
+      return isPast || isCompleted;
+    }).toList();
   }
 
-  /// NOVO: Filtra itens por categoria selecionada
-  List<DailyGoalEntity> get _filteredItems {
-    if (_selectedFilter == null) return items;
-    return items.where((item) => item.category == _selectedFilter).toList();
+
+  /// Retorna lista filtrada por categoria e apenas goals ativos
+  /// Goals ativos = data de hoje ou futura E não concluído
+  List<DailyGoalEntity> _getFilteredItems() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    // Filtrar goals ativos: data >= hoje E não concluído
+    var activeGoals = items.where((goal) {
+      final goalDate = DateTime(goal.date.year, goal.date.month, goal.date.day);
+      final isActive = goalDate.isAtSameMomentAs(today) || goalDate.isAfter(today);
+      final isNotCompleted = !goal.isCompleted;
+      return isActive && isNotCompleted;
+    }).toList();
+
+    if (_selectedCategoryFilter == null) {
+      return activeGoals;
+    }
+    return activeGoals
+        .where((goal) => goal.category == _selectedCategoryFilter)
+        .toList();
   }
 
   @override
   Widget build(BuildContext context) {
+    final filteredItems = _getFilteredItems();
+    final historicalGoals = _getHistoricalGoals();
+
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Metas Diárias'),
+        actions: [
+          // Botão para acessar histórico
+          if (historicalGoals.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              child: Center(
+                child: GestureDetector(
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => DailyGoalHistoryPage(
+                          historicalGoals: historicalGoals,
+                        ),
+                      ),
+                    );
+                  },
+                  child: Badge(
+                    label: Text(historicalGoals.length.toString()),
+                    child: const Icon(Icons.history),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
       body: Stack(
         children: [
           SafeArea(
@@ -57,22 +114,145 @@ class _DailyGoalListPageState extends State<DailyGoalListPage>
               child: Column(
                 children: [
                   // NOVO: Chips de filtro por categoria
-                  if (items.isNotEmpty) _buildCategoryFilters(),
-                  const SizedBox(height: 8),
-                  Expanded(child: _buildBody(context)),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        // Chip "Todas"
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8.0),
+                          child: FilterChip(
+                            label: const Text('Todas'),
+                            selected: _selectedCategoryFilter == null,
+                            onSelected: (_) {
+                              setState(() => _selectedCategoryFilter = null);
+                            },
+                          ),
+                        ),
+                        // Chips por categoria
+                        ...GoalCategory.values.map((category) {
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8.0),
+                            child: FilterChip(
+                              avatar: Text(category.icon),
+                              label: Text(category.description),
+                              selected: _selectedCategoryFilter == category,
+                              onSelected: (_) {
+                                setState(() => _selectedCategoryFilter = category);
+                              },
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Lista de metas
+                  Expanded(
+                    child: _buildBody(context, filteredItems),
+                  ),
                 ],
               ),
             ),
           ),
 
           // Overlay de tutorial central
-          if (showTutorial) _buildTutorialOverlay(context),
+          if (showTutorial)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black45,
+                alignment: Alignment.center,
+                child: Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Tutorial',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Aqui você verá uma lista com ${widget.entity.toUpperCase()}s. Use o botão flutuante para adicionar.',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () => setState(() => showTutorial = false),
+                          child: const Text('Entendi'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
 
           // Opt-out button positioned bottom-left
-          _buildOptOutButton(context),
+          Positioned(
+            left: 16,
+            bottom: MediaQuery.of(context).padding.bottom + 12,
+            child: TextButton(
+              onPressed: () => setState(() {
+                showTip = false;
+                _fabController.stop();
+                _fabController.reset();
+              }),
+              child: const Text(
+                'Não exibir dica novamente',
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
 
           // Tip bubble positioned above FAB (bottom-right)
-          if (showTip) _buildTipBubble(context),
+          if (showTip)
+            Positioned(
+              right: 16,
+              bottom: MediaQuery.of(context).padding.bottom + 72,
+              child: AnimatedBuilder(
+                animation: _fabController,
+                builder: (context, child) {
+                  final v = _fabController.value;
+                  return Transform.translate(
+                    offset: Offset(0, 10 * (1 - v)),
+                    child: child,
+                  );
+                },
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width * 0.8,
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12.0, vertical: 8.0),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.secondary,
+                      borderRadius: BorderRadius.circular(8.0),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 6,
+                          offset: Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      'Toque aqui para adicionar ${widget.entity.toLowerCase()}',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: Colors.white),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 2,
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
       // Standard FAB at bottom-right with subtle scale animation
@@ -80,9 +260,11 @@ class _DailyGoalListPageState extends State<DailyGoalListPage>
         scale: _fabScale,
         child: FloatingActionButton(
           onPressed: () async {
+            // Abre a dialog para criar/editar uma DailyGoalEntity
             final result = await showDailyGoalEntityFormDialog(context);
             if (result != null) {
               setState(() {
+                // insere no topo da lista
                 items.insert(0, result);
               });
             }
@@ -94,43 +276,8 @@ class _DailyGoalListPageState extends State<DailyGoalListPage>
     );
   }
 
-  /// NOVO: Chips de filtro por categoria
-  Widget _buildCategoryFilters() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          // Chip "Todas"
-          FilterChip(
-            label: const Text('Todas'),
-            selected: _selectedFilter == null,
-            onSelected: (selected) {
-              setState(() => _selectedFilter = null);
-            },
-          ),
-          const SizedBox(width: 8),
-          // Chips de categorias
-          ...GoalCategory.values.map((category) {
-            return Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: FilterChip(
-                label: Text('${category.icon} ${category.description}'),
-                selected: _selectedFilter == category,
-                onSelected: (selected) {
-                  setState(() {
-                    _selectedFilter = selected ? category : null;
-                  });
-                },
-              ),
-            );
-          }),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBody(BuildContext context) {
-    if (_filteredItems.isEmpty && items.isEmpty) {
+  Widget _buildBody(BuildContext context, List<DailyGoalEntity> filteredItems) {
+    if (filteredItems.isEmpty) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -160,121 +307,43 @@ class _DailyGoalListPageState extends State<DailyGoalListPage>
       );
     }
 
-    if (_filteredItems.isEmpty) {
-      return Center(
-        child: Text(
-          'Nenhuma meta na categoria ${_selectedFilter!.description}.',
-          style: Theme.of(context).textTheme.bodyLarge,
-          textAlign: TextAlign.center,
-        ),
-      );
-    }
-
+    // Lista de metas com informações
     return ListView.separated(
       itemBuilder: (context, index) {
-        final goal = _filteredItems[index];
+        final goal = filteredItems[index];
         return ListTile(
-          leading: CircleAvatar(
-            child: Text(goal.category.icon),
+          leading: Text(
+            goal.category.icon,
+            style: const TextStyle(fontSize: 24),
           ),
-          title: Text('${goal.type.description} - ${goal.category.description}'),
+          title: Text('${goal.type.icon} ${goal.type.description}'),
           subtitle: Text(
-            'Progresso: ${goal.progressPercentage}% (${goal.currentValue}/${goal.targetValue})',
+            '${goal.currentValue}/${goal.targetValue} • ${goal.category.description}',
           ),
           trailing: goal.isCompleted
               ? const Icon(Icons.check_circle, color: Colors.green)
-              : null,
+              : CircularProgressIndicator(
+                  value: goal.progress,
+                  strokeWidth: 2,
+                ),
+          onTap: () async {
+            final result = await showDailyGoalEntityFormDialog(
+              context,
+              initial: goal,
+            );
+            if (result != null) {
+              setState(() {
+                final idx = items.indexOf(goal);
+                if (idx >= 0) {
+                  items[idx] = result;
+                }
+              });
+            }
+          },
         );
       },
       separatorBuilder: (_, __) => const Divider(height: 1),
-      itemCount: _filteredItems.length,
+      itemCount: filteredItems.length,
     );
   }
-
-  Widget _buildTutorialOverlay(BuildContext context) => Positioned.fill(
-        child: Container(
-          color: Colors.black45,
-          alignment: Alignment.center,
-          child: Card(
-            margin: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Tutorial',
-                      style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Aqui você verá uma lista com ${widget.entity.toUpperCase()}s. Use o botão flutuante para adicionar.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => setState(() => showTutorial = false),
-                    child: const Text('Entendi'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-
-  Widget _buildOptOutButton(BuildContext context) => Positioned(
-        left: 16,
-        bottom: MediaQuery.of(context).padding.bottom + 12,
-        child: TextButton(
-          onPressed: () => setState(() {
-            showTip = false;
-            _fabController.stop();
-            _fabController.reset();
-          }),
-          child: const Text('Não exibir dica novamente',
-              overflow: TextOverflow.ellipsis),
-        ),
-      );
-
-  Widget _buildTipBubble(BuildContext context) => Positioned(
-        right: 16,
-        bottom: MediaQuery.of(context).padding.bottom + 72,
-        child: AnimatedBuilder(
-          animation: _fabController,
-          builder: (context, child) {
-            final v = _fabController.value;
-            return Transform.translate(
-              offset: Offset(0, 10 * (1 - v)),
-              child: child,
-            );
-          },
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.8),
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.secondary,
-                borderRadius: BorderRadius.circular(8.0),
-                boxShadow: const [
-                  BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 6,
-                      offset: Offset(0, 3))
-                ],
-              ),
-              child: Text(
-                'Toque aqui para adicionar ${widget.entity.toLowerCase()}',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: Colors.white),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 2,
-              ),
-            ),
-          ),
-        ),
-      );
 }

@@ -1,8 +1,3 @@
-// Gerado: Dialog de inserção/edição para DailyGoalEntity
-// Ajuste o import/tipo se necessário. Este arquivo pressupõe que
-// `DailyGoalEntity` e `GoalType` estão definidos em:
-// `package:mood_journal/domain/entities/daily_goal_entity.dart`
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:mood_journal/domain/entities/daily_goal_entity.dart';
@@ -21,8 +16,8 @@ Future<DailyGoalEntity?> showDailyGoalEntityFormDialog(
 }
 
 class _DailyGoalEntityFormDialog extends StatefulWidget {
-  final DailyGoalEntity? initial;
   const _DailyGoalEntityFormDialog({this.initial, Key? key}) : super(key: key);
+  final DailyGoalEntity? initial;
 
   @override
   State<_DailyGoalEntityFormDialog> createState() =>
@@ -34,6 +29,7 @@ class _DailyGoalEntityFormDialogState
   late final TextEditingController _idController;
   late final TextEditingController _userIdController;
   GoalType? _selectedType;
+  GoalCategory? _selectedCategory; // NOVO
   late final TextEditingController _targetValueController;
   late final TextEditingController _currentValueController;
   DateTime? _selectedDate;
@@ -48,6 +44,7 @@ class _DailyGoalEntityFormDialogState
     _idController = TextEditingController(text: initial?.id ?? '');
     _userIdController = TextEditingController(text: initial?.userId ?? '');
     _selectedType = initial?.type ?? GoalType.moodEntries;
+    _selectedCategory = initial?.category ?? GoalCategory.personal; // NOVO
     _targetValueController =
         TextEditingController(text: initial?.targetValue.toString() ?? '');
     _currentValueController =
@@ -102,6 +99,10 @@ class _DailyGoalEntityFormDialogState
       _showError('Tipo de meta é obrigatório.');
       return;
     }
+    if (_selectedCategory == null) {
+      _showError('Categoria é obrigatória.');
+      return;
+    }
     final targetText = _targetValueController.text.trim();
     final currentText = _currentValueController.text.trim();
     if (targetText.isEmpty) {
@@ -134,6 +135,7 @@ class _DailyGoalEntityFormDialogState
       currentValue: currentValue,
       date: date,
       isCompleted: _isCompleted,
+      category: _selectedCategory!, // NOVO
     );
 
     Navigator.of(context).pop(dto);
@@ -184,6 +186,24 @@ class _DailyGoalEntityFormDialogState
                             ))
                         .toList(),
                     onChanged: (v) => setState(() => _selectedType = v),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              // NOVO: Categoria (enum)
+              InputDecorator(
+                decoration: const InputDecoration(labelText: 'Categoria'),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<GoalCategory>(
+                    value: _selectedCategory,
+                    isExpanded: true,
+                    items: GoalCategory.values
+                        .map((c) => DropdownMenuItem(
+                              value: c,
+                              child: Text('${c.icon} ${c.description}'),
+                            ))
+                        .toList(),
+                    onChanged: (v) => setState(() => _selectedCategory = v),
                   ),
                 ),
               ),

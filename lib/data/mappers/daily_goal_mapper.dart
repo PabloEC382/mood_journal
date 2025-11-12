@@ -14,6 +14,7 @@ class DailyGoalMapper {
       currentValue: dto.current,
       date: DateTime.parse(dto.dateIso), // Converte ISO 8601 para DateTime
       isCompleted: dto.completed,
+      category: GoalCategory.fromString(dto.category), // NOVO
     );
   }
 
@@ -27,6 +28,7 @@ class DailyGoalMapper {
       current: entity.currentValue,
       dateIso: _formatDateToIso(entity.date), // Normalização: formato ISO 8601
       completed: entity.isCompleted,
+      category: entity.category.name, // NOVO
     );
   }
 

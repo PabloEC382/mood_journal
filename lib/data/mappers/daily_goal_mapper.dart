@@ -14,7 +14,7 @@ class DailyGoalMapper {
       currentValue: dto.current,
       date: DateTime.parse(dto.dateIso), // Converte ISO 8601 para DateTime
       isCompleted: dto.completed,
-      category: GoalCategory.fromString(dto.category), // NOVO
+      category: GoalCategory.fromString(dto.category), // NOVO: converte string para enum
     );
   }
 

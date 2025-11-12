@@ -4,29 +4,25 @@ import 'package:mood_journal/domain/entities/daily_goal_entity.dart';
 /// Página de Histórico de Metas Concluídas
 /// Feature 1: Mostra estatísticas e lista de metas dos últimos 7/30 dias
 class DailyGoalHistoryPage extends StatefulWidget {
-  const DailyGoalHistoryPage({super.key});
+  final List<DailyGoalEntity> historicalGoals;
+
+  const DailyGoalHistoryPage({
+    super.key,
+    required this.historicalGoals,
+  });
 
   @override
   State<DailyGoalHistoryPage> createState() => _DailyGoalHistoryPageState();
 }
 
 class _DailyGoalHistoryPageState extends State<DailyGoalHistoryPage> {
-  final List<DailyGoalEntity> _allGoals = []; // TODO: carregar do DAO
+  late List<DailyGoalEntity> _allGoals;
   int _selectedPeriod = 7; // 7 ou 30 dias
 
   @override
   void initState() {
     super.initState();
-    // TODO: carregar metas do cache local via DAO
-    _loadGoals();
-  }
-
-  Future<void> _loadGoals() async {
-    // TODO: integrar com DailyGoalLocalDao.listAll()
-    // Por enquanto, simulação layout-only
-    setState(() {
-      // Metas de exemplo seriam carregadas aqui
-    });
+    _allGoals = widget.historicalGoals;
   }
 
   /// Filtra metas dos últimos N dias

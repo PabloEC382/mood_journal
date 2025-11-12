@@ -4,7 +4,6 @@ import '../theme/app_theme.dart';
 import '../providers/profile_provider.dart';
 import '../widgets/avatar_widget.dart';
 import '../screens/profile_edit_screen.dart';
-import '../screens/mood_history_screen.dart';
 
 class AppDrawer extends ConsumerWidget {
   const AppDrawer({super.key});
@@ -84,21 +83,6 @@ class AppDrawer extends ConsumerWidget {
                       context,
                       MaterialPageRoute(
                         builder: (context) => const ProfileEditScreen(),
-                      ),
-                    );
-                  },
-                ),
-                
-                _buildDrawerItem(
-                  context,
-                  icon: Icons.history,
-                  title: 'Histórico de Humor',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const MoodHistoryScreen(),
                       ),
                     );
                   },
